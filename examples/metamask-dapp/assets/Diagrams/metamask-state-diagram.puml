@@ -1,0 +1,132 @@
+@startuml MetaMaskWalletConnectStateDiagram
+
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam stateBackgroundColor #E8F5E8
+skinparam stateBorderColor #2E7D32
+skinparam stateAttributeFontColor #1B5E20
+skinparam noteBackgroundColor #FFF3E0
+
+title MetaMask + WalletConnect Integration - State Flow
+
+[*] --> Initializing : Application Start
+
+state Initializing {
+  Initializing : Detect MetaMask Extension
+  Initializing : Initialize WalletConnect
+  Initializing : Setup Event Listeners
+}
+
+Initializing --> Disconnected : Initialization Complete
+Initializing --> InitializationFailed : Setup Error
+
+state Disconnected {
+  Disconnected : No Active Connections
+  Disconnected : Display Connection Options
+  Disconnected : MetaMask Available
+  Disconnected : WalletConnect Ready
+}
+
+Disconnected --> ConnectingMetaMask : User Selects MetaMask
+Disconnected --> ConnectingMobile : User Selects Mobile Wallet
+
+state ConnectingMetaMask {
+  ConnectingMetaMask : ethereum.request(eth_requestAccounts)
+  ConnectingMetaMask : Await User Approval
+  ConnectingMetaMask : Validate Network
+}
+
+state ConnectingMobile {
+  ConnectingMobile : Generate WalletConnect URI
+  ConnectingMobile : Display QR Code
+  ConnectingMobile : Await Mobile Connection
+}
+
+ConnectingMetaMask --> Connected : MetaMask Approved
+ConnectingMetaMask --> Disconnected : User Rejected
+ConnectingMetaMask --> NetworkMismatch : Wrong Network
+
+ConnectingMobile --> Connected : Mobile Wallet Connected
+ConnectingMobile --> Disconnected : Connection Timeout
+ConnectingMobile --> Disconnected : User Cancelled
+
+state NetworkMismatch {
+  NetworkMismatch : Display Network Error
+  NetworkMismatch : Offer Network Switch
+}
+
+NetworkMismatch --> SwitchingNetwork : User Accepts Switch
+NetworkMismatch --> Disconnected : User Declines
+
+state SwitchingNetwork {
+  SwitchingNetwork : wallet_addEthereumChain
+  SwitchingNetwork : Configure Hedera Network
+  SwitchingNetwork : Await Confirmation
+}
+
+SwitchingNetwork --> Connected : Network Switched
+SwitchingNetwork --> NetworkMismatch : Switch Failed
+
+state Connected {
+  Connected : Active Wallet Session
+  Connected : Monitor Account Changes
+  Connected : Listen for Network Changes
+  Connected : Ready for Operations
+}
+
+Connected --> ProcessingTransaction : Transaction Request
+Connected --> Disconnected : User Disconnects
+Connected --> Disconnected : Wallet Disconnects
+Connected --> NetworkMismatch : Network Changed
+
+state ProcessingTransaction {
+  ProcessingTransaction : Prepare Transaction
+  ProcessingTransaction : Request Signature
+  ProcessingTransaction : Submit to Network
+}
+
+ProcessingTransaction --> TransactionSuccess : Signature Confirmed
+ProcessingTransaction --> TransactionFailed : Signature Rejected
+ProcessingTransaction --> Connected : Network Error
+
+state TransactionSuccess {
+  TransactionSuccess : Display Success
+  TransactionSuccess : Update UI State
+  TransactionSuccess : Log Transaction
+}
+
+state TransactionFailed {
+  TransactionFailed : Display Error
+  TransactionFailed : Show Retry Option
+  TransactionFailed : Log Failure
+}
+
+TransactionSuccess --> Connected : Continue Operations
+TransactionFailed --> Connected : Return to Ready
+TransactionFailed --> ProcessingTransaction : User Retries
+
+state InitializationFailed {
+  InitializationFailed : Display Error Message
+  InitializationFailed : Show Troubleshooting
+}
+
+InitializationFailed --> Initializing : User Retries
+InitializationFailed --> [*] : Application Exit
+
+note as TransitionDrivers
+  State Transitions driven by:
+  - User interactions (button clicks, wallet selection)
+  - MetaMask events (accountsChanged, chainChanged)
+  - WalletConnect events (session updates, disconnections)
+  - Network responses (transaction confirmations, errors)
+end note
+
+note as IntegrationPoints
+  Key Integration Points:
+  - MetaMask Extension API (ethereum.request)
+  - WalletConnect Protocol (QR codes, mobile sessions)
+  - Hedera Network Configuration (chain switching)
+  - Event-driven state management
+end note
+
+@enduml

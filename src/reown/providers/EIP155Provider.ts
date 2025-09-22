@@ -96,14 +96,27 @@ class EIP155Provider implements IProvider {
     rpcUrl?: string | undefined,
   ): JsonRpcProvider | undefined {
     if (!chainId) return undefined
+    
+    // First, check if we have an RPC URL provided
+    if (rpcUrl) {
+      const http = new JsonRpcProvider(new HttpConnection(rpcUrl, false))
+      return http
+    }
+    
+    // Check for Hedera EVM chains
     const { Testnet, Mainnet } = HederaChainDefinition.EVM
     const caipNetwork = [Mainnet, Testnet].find((network) => network.id == chainId)
-    const rpc = caipNetwork?.rpcUrls.default.http[0] || rpcUrl
-    if (!rpc) {
-      throw new Error(`No RPC url provided for chainId: ${chainId}`)
+    if (caipNetwork) {
+      const rpc = caipNetwork.rpcUrls.default.http[0]
+      const http = new JsonRpcProvider(new HttpConnection(rpc, false))
+      return http
     }
-    const http = new JsonRpcProvider(new HttpConnection(rpc, false))
-    return http
+    
+    // For non-Hedera chains, return undefined instead of throwing an error
+    // This allows the provider to skip creating HTTP providers for chains
+    // that are not relevant to Hedera operations
+    this.logger.warn(`No RPC url configured for chainId: ${chainId}, skipping HTTP provider creation`)
+    return undefined
   }
 
   private setHttpProvider(chainId: number, rpcUrl?: string): void {
@@ -117,7 +130,10 @@ class EIP155Provider implements IProvider {
     const http: Record<number, JsonRpcProvider> = {}
     this.namespace.chains.forEach((chain) => {
       const parsedChain = parseInt(getChainId(chain))
-      http[parsedChain] = this.createHttpProvider(parsedChain, this.namespace.rpcMap?.[chain])!
+      const provider = this.createHttpProvider(parsedChain, this.namespace.rpcMap?.[chain])
+      if (provider) {
+        http[parsedChain] = provider
+      }
     })
     return http
   }

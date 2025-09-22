@@ -37,7 +37,7 @@ describe('EIP155Provider extra branches', () => {
   it('createHttpProvider handles invalid input', () => {
     const provider = createProvider()
     expect(provider['createHttpProvider'](0)).toBeUndefined()
-    expect(() => provider['createHttpProvider'](999)).toThrow('No RPC url provided')
+    expect(provider['createHttpProvider'](999)).toBeUndefined()
   })
 
   it('getDefaultChain falls back to namespace', () => {

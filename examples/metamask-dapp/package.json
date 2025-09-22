@@ -1,0 +1,23 @@
+{
+  "name": "metamask-dapp-example",
+  "version": "1.0.0",
+  "description": "Complete WalletConnect integration example using hedera-wallet-connect library",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@hashgraph/hedera-wallet-connect": "file:../../hashgraph-hedera-wallet-connect-2.0.3.tgz",
+    "@reown/appkit": "^1.3.0",
+    "@reown/appkit-adapter-ethers": "^1.3.0",
+    "ethers": "^6.13.5",
+    "qrcode": "^1.5.3"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.5",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0"
+  }
+}
