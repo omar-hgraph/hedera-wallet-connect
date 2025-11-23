@@ -170,3 +170,80 @@ export interface SignTransactionResult extends JsonRpcResult<{ signatureMap: str
 export interface SignTransactionResponse extends EngineTypes.RespondParams {
   response: SignTransactionResult
 }
+/*
+ * 7. hedera_signTransactions (HIP-1190)
+ */
+
+/**
+ * Parameters for hedera_signTransactions method
+ * 
+ * This method signs a transaction body for multiple random Hedera nodes,
+ * enabling multi-signature workflows with node redundancy.
+ * 
+ * @see {@link https://github.com/hiero-ledger/hiero-improvement-proposals/pull/1190 | HIP-1190}
+ */
+export interface SignTransactionsParams {
+  /**
+   * Hedera Account identifier in HIP-30 format
+   * Format: "hedera:<network>:<shard>.<realm>.<num>"
+   * Example: "hedera:testnet:0.0.123"
+   */
+  signerAccountId: string
+  
+  /**
+   * Base64-encoded TransactionBody OR Transaction object
+   * 
+   * IMPORTANT: Must NOT have nodeAccountId set.
+   * The wallet will assign multiple random nodes.
+   */
+  transactionBody: string | Transaction
+  
+  /**
+   * Optional number of nodes to sign for
+   * Default: 5
+   * 
+   * The wallet will:
+   * 1. Select this many random nodes from the network
+   * 2. Create a transaction for each node
+   * 3. Sign each transaction
+   * 4. Return signature maps only
+   */
+  nodeCount?: number
+}
+
+/**
+ * Request structure for hedera_signTransactions
+ */
+export interface SignTransactionsRequest extends EngineTypes.RequestParams {
+  request: {
+    method: HederaJsonRpcMethod.SignTransactions
+    params: SignTransactionsParams
+  }
+}
+
+/**
+ * Result structure for hedera_signTransactions
+ * 
+ * SECURITY: Returns ONLY signature maps, not full transactions.
+ * This prevents man-in-the-middle attacks where transaction
+ * body could be modified. DApp must reconstruct signed
+ * transactions using its original transaction body.
+ */
+export interface SignTransactionsResult extends JsonRpcResult<{
+  /**
+   * Array of base64-encoded SignatureMaps
+   * 
+   * Each signature map corresponds to one randomly selected node.
+   * The order matches the node selection order.
+   * 
+   * Length: Equals nodeCount parameter (default 5)
+   */
+  signatureMaps: string[]
+}> {}
+
+/**
+ * Response structure for hedera_signTransactions
+ */
+export interface SignTransactionsResponse extends EngineTypes.RespondParams {
+  response: SignTransactionsResult
+}
