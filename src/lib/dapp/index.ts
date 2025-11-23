@@ -44,6 +44,9 @@ import {
   SignAndExecuteTransactionResult,
   SignTransactionParams,
   SignTransactionResult,
+  SignTransactionsParams,
+  SignTransactionsRequest,
+  SignTransactionsResult,
   ExtensionData,
   extensionConnect,
   findExtensions,
@@ -690,6 +693,84 @@ export class DAppConnector {
     )
   }
 
+  /**
+   * Requests wallet to sign a transaction for multiple nodes (HIP-1190)
+   * 
+   * Returns an array of signed transactions (one per node). The wallet:
+   * 1. Validates transaction body has no node ID set
+   * 2. Selects N random nodes from the network
+   * 3. Signs the transaction for each node
+   * 4. Returns signature maps (NOT full transactions) for security
+   * 
+   * The DApp must reconstruct signed transactions locally using the original
+   * transaction body and returned signatures. This prevents man-in-the-middle
+   * attacks where transaction body could be modified.
+   * 
+   * @param params - SignTransactionsParams containing signerAccountId, transactionBody, and optional nodeCount
+   * @returns Promise<Transaction[]> Array of signed Transaction objects (one per node)
+   * 
+   * @throws {Error} If transaction has node IDs already set
+   * @throws {Error} If no signer found for account
+   * 
+   * @example
+   * ```typescript
+   * const transaction = new TransferTransaction()
+   *   .addHbarTransfer('0.0.123', new Hbar(-10))
+   *   .addHbarTransfer('0.0.456', new Hbar(10))
+   * 
+   * const signedTransactions = await dAppConnector.signTransactions({
+   *   signerAccountId: 'hedera:testnet:0.0.123',
+   *   transactionBody: transaction,
+   *   nodeCount: 5
+   * })
+   * 
+   * for (const signedTx of signedTransactions) {
+   *   try {
+   *     const response = await signedTx.execute(client)
+   *     break
+   *   } catch (error) {
+   *     console.log('Node failed, trying next...')
+   *   }
+   * }
+   * ```
+   * 
+   * @see {@link https://github.com/hiero-ledger/hiero-improvement-proposals/pull/1190 | HIP-1190}
+   */
+  public async signTransactions(params: SignTransactionsParams) {
+    if (!params?.transactionBody) {
+      throw new Error('No transaction provided')
+    }
+    
+    // Handle string format (base64 encoded)
+    if (typeof params.transactionBody === 'string') {
+      this.logger.warn(
+        'Transaction body is a string. Consider passing Transaction object directly.',
+      )
+      return await this.request<SignTransactionsRequest, SignTransactionsResult>({
+        method: HederaJsonRpcMethod.SignTransactions,
+        params,
+      })
+    }
+    
+    // Handle Transaction object format 
+    if (params.transactionBody instanceof Transaction) {
+      const signerAccountId = params.signerAccountId?.split(':')?.pop()
+      const accountSigner = this.signers.find(
+        (signer) => signer.getAccountId()?.toString() === signerAccountId,
+      )
+      
+      if (!accountSigner) {
+        throw new Error(`No signer found for account ${signerAccountId}`)
+      }
+      
+      return await accountSigner.signTransactions(
+        params.transactionBody as Transaction,
+        params.nodeCount,
+      )
+    }
+    
+    throw new Error('Transaction sent in incorrect format.')
+  }
   private handleSessionEvent(
     args: SignClientTypes.BaseEventArgs<{
       event: { name: string; data: any }
