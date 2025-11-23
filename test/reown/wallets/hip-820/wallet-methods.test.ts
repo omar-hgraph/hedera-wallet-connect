@@ -246,4 +246,193 @@ describe('HIP820Wallet Methods', () => {
       expect(result).toEqual(mockResponse)
     })
   })
+
+  describe('hedera_signTransactions', () => {
+    it('should sign transaction body for multiple nodes and return nodeAccountIds', async () => {
+      const transaction = prepareTestTransaction(new TopicCreateTransaction(), {
+        freeze: true,
+      })
+
+      const transactionBody = transactionToTransactionBody(transaction, null)
+      const uint8ArrayBody = proto.TransactionBody.encode(transactionBody).finish()
+
+      const result = await hip820Wallet.hedera_signTransactions(requestId, uint8ArrayBody, 3)
+
+      expect(result).toHaveProperty('jsonrpc', '2.0')
+      expect(result).toHaveProperty('id', requestId)
+      expect(result).toHaveProperty('result')
+      
+      const resultData = (result as any).result
+      expect(resultData).toHaveProperty('signatureMaps')
+      expect(resultData).toHaveProperty('nodeAccountIds')
+      expect(Array.isArray(resultData.signatureMaps)).toBe(true)
+      expect(Array.isArray(resultData.nodeAccountIds)).toBe(true)
+      expect(resultData.signatureMaps.length).toBe(3)
+      expect(resultData.nodeAccountIds.length).toBe(3)
+
+      resultData.signatureMaps.forEach((sigMap: string) => {
+        expect(typeof sigMap).toBe('string')
+        expect(sigMap.length).toBeGreaterThan(0)
+      })
+
+      resultData.nodeAccountIds.forEach((nodeId: string) => {
+        expect(typeof nodeId).toBe('string')
+        expect(nodeId).toMatch(/^0\.0\.\d+$/)
+      })
+    })
+
+    it('should use default nodeCount of 5 when not specified', async () => {
+      const transaction = prepareTestTransaction(new TopicCreateTransaction(), {
+        freeze: true,
+      })
+
+      const transactionBody = transactionToTransactionBody(transaction, null)
+      const uint8ArrayBody = proto.TransactionBody.encode(transactionBody).finish()
+
+      const result = await hip820Wallet.hedera_signTransactions(requestId, uint8ArrayBody)
+
+      const resultData = (result as any).result
+      expect(resultData.signatureMaps.length).toBe(5)
+      expect(resultData.nodeAccountIds.length).toBe(5)
+    })
+
+    it('should reject transaction body with nodeAccountId already set', async () => {
+      const transaction = prepareTestTransaction(new TopicCreateTransaction(), {
+        freeze: true,
+      })
+
+      const transactionBody = transactionToTransactionBody(transaction, testNodeAccountId)
+      const uint8ArrayBody = proto.TransactionBody.encode(transactionBody).finish()
+
+      const result = await hip820Wallet.hedera_signTransactions(requestId, uint8ArrayBody, 3)
+
+      expect(result).toHaveProperty('error')
+      const errorResult = (result as any).error
+      expect(errorResult.code).toBe(-32602)
+      expect(errorResult.message).toBe('Invalid params')
+    })
+
+    it('should handle invalid transaction body', async () => {
+      const invalidBody = new Uint8Array([1, 2, 3, 4, 5])
+
+      const result = await hip820Wallet.hedera_signTransactions(requestId, invalidBody, 3)
+
+      expect(result).toHaveProperty('error')
+      const errorResult = (result as any).error
+      expect(errorResult.code).toBe(-32602)
+      expect(errorResult.message).toBe('Invalid params')
+    })
+
+    it('should sign transaction for single node (nodeCount=1)', async () => {
+      const transaction = prepareTestTransaction(new TopicCreateTransaction(), {
+        freeze: true,
+      })
+
+      const transactionBody = transactionToTransactionBody(transaction, null)
+      const uint8ArrayBody = proto.TransactionBody.encode(transactionBody).finish()
+
+      const result = await hip820Wallet.hedera_signTransactions(requestId, uint8ArrayBody, 1)
+
+      const resultData = (result as any).result
+      expect(resultData.signatureMaps.length).toBe(1)
+      expect(resultData.nodeAccountIds.length).toBe(1)
+    })
+
+    it('should handle multiple signing requests in sequence', async () => {
+      const transaction = prepareTestTransaction(new TopicCreateTransaction(), {
+        freeze: true,
+      })
+
+      const transactionBody = transactionToTransactionBody(transaction, null)
+      const uint8ArrayBody = proto.TransactionBody.encode(transactionBody).finish()
+
+      const result1 = await hip820Wallet.hedera_signTransactions(requestId, uint8ArrayBody, 2)
+      const result2 = await hip820Wallet.hedera_signTransactions(requestId + 1, uint8ArrayBody, 2)
+      const result3 = await hip820Wallet.hedera_signTransactions(requestId + 2, uint8ArrayBody, 2)
+
+      expect((result1 as any).result.signatureMaps.length).toBe(2)
+      expect((result2 as any).result.signatureMaps.length).toBe(2)
+      expect((result3 as any).result.signatureMaps.length).toBe(2)
+    })
+
+    it('should never select duplicate nodes for same request', async () => {
+      const transaction = prepareTestTransaction(new TopicCreateTransaction(), {
+        freeze: true,
+      })
+
+      const transactionBody = transactionToTransactionBody(transaction, null)
+      const uint8ArrayBody = proto.TransactionBody.encode(transactionBody).finish()
+
+      const network = hip820Wallet.getHederaWallet().getNetwork()
+      const availableNodeCount = Object.keys(network).length
+      const requestNodeCount = Math.min(3, availableNodeCount)
+
+      const result = await hip820Wallet.hedera_signTransactions(requestId, uint8ArrayBody, requestNodeCount)
+
+      const resultData = (result as any).result
+      const nodeIds = resultData.nodeAccountIds
+      const uniqueNodeIds = new Set(nodeIds)
+
+      expect(uniqueNodeIds.size).toBe(nodeIds.length)
+      expect(uniqueNodeIds.size).toBe(requestNodeCount)
+    })
+
+    it('should verify all node IDs are from available network', async () => {
+      const transaction = prepareTestTransaction(new TopicCreateTransaction(), {
+        freeze: true,
+      })
+
+      const transactionBody = transactionToTransactionBody(transaction, null)
+      const uint8ArrayBody = proto.TransactionBody.encode(transactionBody).finish()
+
+      const result = await hip820Wallet.hedera_signTransactions(requestId, uint8ArrayBody, 3)
+
+      const resultData = (result as any).result
+      const network = hip820Wallet.getHederaWallet().getNetwork()
+      const availableNodeIds = Object.values(network).map((node: any) => 
+        node.toString ? node.toString() : String(node)
+      )
+
+      resultData.nodeAccountIds.forEach((nodeId: string) => {
+        expect(availableNodeIds).toContain(nodeId)
+      })
+    })
+
+    it('should return arrays with matching lengths', async () => {
+      const transaction = prepareTestTransaction(new TopicCreateTransaction(), {
+        freeze: true,
+      })
+
+      const transactionBody = transactionToTransactionBody(transaction, null)
+      const uint8ArrayBody = proto.TransactionBody.encode(transactionBody).finish()
+
+      const result = await hip820Wallet.hedera_signTransactions(requestId, uint8ArrayBody, 4)
+
+      const resultData = (result as any).result
+      expect(resultData.signatureMaps.length).toBe(resultData.nodeAccountIds.length)
+      expect(resultData.signatureMaps.length).toBe(4)
+    })
+
+    it('should decode each signature map successfully', async () => {
+      const transaction = prepareTestTransaction(new TopicCreateTransaction(), {
+        freeze: true,
+      })
+
+      const transactionBody = transactionToTransactionBody(transaction, null)
+      const uint8ArrayBody = proto.TransactionBody.encode(transactionBody).finish()
+
+      const result = await hip820Wallet.hedera_signTransactions(requestId, uint8ArrayBody, 3)
+
+      const resultData = (result as any).result
+      
+      resultData.signatureMaps.forEach((sigMapBase64: string) => {
+        expect(() => {
+          const sigMapBytes = Buffer.from(sigMapBase64, 'base64')
+          const sigMap = proto.SignatureMap.decode(sigMapBytes)
+          expect(sigMap.sigPair).toBeDefined()
+          expect(Array.isArray(sigMap.sigPair)).toBe(true)
+        }).not.toThrow()
+      })
+    })
+  })
 })
