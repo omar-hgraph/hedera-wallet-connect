@@ -237,7 +237,15 @@ export class HIP820Wallet implements HIP820WalletInterface {
     event: WalletRequestEventArgs,
   ): Promise<JsonRpcResult<any> | JsonRpcError> {
     const { method, id, body } = this.parseSessionRequest(event)
-    const response = await this[method](id, body)
+    
+    // Extract nodeCount if it exists (for HIP-1190)
+    const nodeCount = (body as any)?.__nodeCount
+    
+    // Call the method with appropriate parameters
+    const response = nodeCount !== undefined 
+      ? await this[method](id, body, nodeCount)
+      : await this[method](id, body)
+      
     return response
   }
 
