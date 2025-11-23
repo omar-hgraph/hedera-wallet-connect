@@ -32,6 +32,7 @@ import {
   SignAndExecuteTransactionResult,
   SignTransactionParams,
   SignTransactionResult,
+  SignTransactionsParams,
   HederaJsonRpcMethod,
 } from '../..'
 import {
@@ -276,6 +277,72 @@ export class HederaProvider extends UniversalProvider {
     return (await this.nativeProvider.signTransaction(
       params.transactionBody as Transaction,
       this.session.topic,
+    ))!
+  }
+
+  /**
+   * Signs a transaction for multiple random Hedera nodes (HIP-1190)
+   * 
+   * This method implements HIP-1190 to enable multi-node transaction signing with automatic
+   * failover. The wallet will select random nodes from the network, sign the transaction
+   * for each node, and return only the signature maps (not full transactions) for security.
+   * 
+   * @param {SignTransactionsParams} params - The parameters for signing transactions
+   * @param {string} params.signerAccountId - Hedera account ID in HIP-30 format (e.g., "hedera:testnet:0.0.123")
+   * @param {Transaction} params.transactionBody - Transaction object WITHOUT node IDs set
+   * @param {number} [params.nodeCount=5] - Number of random nodes to sign for (1-10)
+   * @returns Promise\<Transaction[]\> Array of signed Transaction objects, one per node
+   * @throws {Error} If session not initialized, provider not initialized, invalid transaction format, or invalid signer
+   * 
+   * @example
+   * ```ts
+   * const transaction = new TransferTransaction()
+   *   .addHbarTransfer('0.0.123', new Hbar(-10))
+   *   .addHbarTransfer('0.0.456', new Hbar(10))
+   * 
+   * const signedTransactions = await provider.hedera_signTransactions({
+   *   signerAccountId: 'hedera:testnet:0.0.123',
+   *   transactionBody: transaction,
+   *   nodeCount: 5
+   * })
+   * 
+   * // Try each transaction until one succeeds
+   * for (const signedTx of signedTransactions) {
+   *   try {
+   *     const response = await signedTx.execute(client)
+   *     break // Success!
+   *   } catch (error) {
+   *     continue // Try next node
+   *   }
+   * }
+   * ```
+   * 
+   * @see {@link https://github.com/hiero-ledger/hiero-improvement-proposals/pull/1190 | HIP-1190}
+   */
+  async hedera_signTransactions(params: SignTransactionsParams) {
+    if (!this.session) {
+      throw new Error('Session not initialized. Please call connect()')
+    }
+    if (!this.nativeProvider) {
+      throw new Error('nativeProvider not initialized. Please call connect()')
+    }
+    if (!(params?.transactionBody instanceof Transaction)) {
+      throw new Error(
+        'Transaction sent in incorrect format. Ensure transaction body is a Transaction object.',
+      )
+    }
+
+    const signerAccountId = params?.signerAccountId?.split(':')?.pop()
+    const isValidSigner = this.nativeProvider?.requestAccounts().includes(signerAccountId ?? '')
+
+    if (!isValidSigner) {
+      throw new Error(`Signer not found for account ${signerAccountId}`)
+    }
+
+    return (await this.nativeProvider.signTransactions(
+      params.transactionBody as Transaction,
+      this.session.topic,
+      params.nodeCount,
     ))!
   }
 
