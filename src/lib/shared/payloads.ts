@@ -224,7 +224,7 @@ export interface SignTransactionsRequest extends EngineTypes.RequestParams {
 /**
  * Result structure for hedera_signTransactions
  * 
- * SECURITY: Returns ONLY signature maps, not full transactions.
+ * SECURITY: Returns signature maps + node IDs (not full transactions).
  * This prevents man-in-the-middle attacks where transaction
  * body could be modified. DApp must reconstruct signed
  * transactions using its original transaction body.
@@ -234,11 +234,22 @@ export interface SignTransactionsResult extends JsonRpcResult<{
    * Array of base64-encoded SignatureMaps
    * 
    * Each signature map corresponds to one randomly selected node.
-   * The order matches the node selection order.
+   * The order matches the nodeAccountIds array.
    * 
    * Length: Equals nodeCount parameter (default 5)
    */
   signatureMaps: string[]
+  
+  /**
+   * Array of node account IDs that were signed for
+   * 
+   * Format: "0.0.3", "0.0.4", etc.
+   * These correspond 1:1 with signatureMaps array.
+   * The DApp needs these to reconstruct valid signed transactions.
+   * 
+   * Length: Equals nodeCount parameter (default 5)
+   */
+  nodeAccountIds: string[]
 }> {}
 
 /**
