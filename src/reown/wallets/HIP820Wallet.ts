@@ -413,6 +413,7 @@ export class HIP820Wallet implements HIP820WalletInterface {
     }
     
     const signatureMaps: string[] = []
+    const nodeAccountIds: string[] = []
     
     for (const nodeAccountId of selectedNodes) {
       const txBodyWithNode: proto.ITransactionBody = {
@@ -431,9 +432,10 @@ export class HIP820Wallet implements HIP820WalletInterface {
       )
       const signatureMap = signatureMapToBase64String(_signatureMap)
       signatureMaps.push(signatureMap)
+      nodeAccountIds.push(nodeAccountId.toString())
     }
     
-    return formatJsonRpcResult(id, { signatureMaps })
+    return formatJsonRpcResult(id, { signatureMaps, nodeAccountIds })
     
   } catch (error: any) {
     return formatJsonRpcError(id, {
