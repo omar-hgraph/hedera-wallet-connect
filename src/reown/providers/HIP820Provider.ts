@@ -39,6 +39,14 @@ class HIP820Provider implements IProvider {
     return this.getSigner(topic).signTransaction(transaction)
   }
 
+  async signTransactions<T extends Transaction>(
+    transaction: T,
+    topic: string,
+    nodeCount?: number,
+  ): Promise<T[]> {
+    return this.getSigner(topic).signTransactions(transaction, nodeCount)
+  }
+
   requestAccounts(): string[] {
     const accounts = this.namespace.accounts
     if (!accounts) {
