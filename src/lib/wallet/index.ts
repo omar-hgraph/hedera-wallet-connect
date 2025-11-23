@@ -556,6 +556,7 @@ export class HederaWeb3Wallet extends WalletKit implements HederaNativeWallet {
     
     // Sign transaction body for each node
     const signatureMaps: string[] = []
+    const nodeAccountIds: string[] = []
     
     try {
       for (const nodeAccountId of selectedNodes) {
@@ -575,6 +576,7 @@ export class HederaWeb3Wallet extends WalletKit implements HederaNativeWallet {
         )
         const signatureMap = signatureMapToBase64String(_signatureMap)
         signatureMaps.push(signatureMap)
+        nodeAccountIds.push(nodeAccountId.toString())
       }
     } catch (error: any) {
       const errorResponse = {
@@ -591,7 +593,7 @@ export class HederaWeb3Wallet extends WalletKit implements HederaNativeWallet {
       return await this.respondSessionRequest(errorResponse)
     }
     
-    // Return array of signature maps (HIP-1190 security requirement)
+    // Return array of signature maps + node IDs (HIP-1190 security requirement)
     const response: SignTransactionsResponse = {
       topic,
       response: {
@@ -599,6 +601,7 @@ export class HederaWeb3Wallet extends WalletKit implements HederaNativeWallet {
         id,
         result: {
           signatureMaps,
+          nodeAccountIds,
         },
       },
     }
